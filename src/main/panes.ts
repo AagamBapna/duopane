@@ -31,44 +31,7 @@ const AUTH_HOSTS = [
   'accounts.googleusercontent.com',
 ]
 
-/**
- * Google rejects sign-in ("This browser or app may not be secure") when the
- * UA claims Chrome but the Chromium client-hint headers (sec-ch-ua: with a
- * "Chromium" brand and no "Google Chrome") contradict it. Firefox sends no
- * client hints at all, so presenting Firefox on the auth hosts only gives
- * Google nothing to mismatch. The rest of the session keeps the Chrome UA.
- */
-const FIREFOX_UA =
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:140.0) Gecko/20100101 Firefox/140.0'
-
-function isAuthHostUrl(url: string): boolean {
-  try {
-    const host = new URL(url).hostname
-    return AUTH_HOSTS.some((auth) => host === auth || host.endsWith(`.${auth}`))
-  } catch {
-    return false
-  }
-}
-
-/**
- * A pane whose own site is a Google property gets the Firefox identity for
- * its whole session: swapping UA mid-session leaves contradictory signals
- * (cookies set as "Chrome", sign-in as "Firefox") that Google flags.
- */
-function isGoogleProperty(url: string): boolean {
-  try {
-    const host = new URL(url).hostname
-    return host === 'google.com' || host.endsWith('.google.com')
-  } catch {
-    return false
-  }
-}
-
-function uaForPaneUrl(url: string): string {
-  return isGoogleProperty(url) ? FIREFOX_UA : realisticChromeUA()
-}
-
-/** Session partitions that already have webRequest hooks and preloads. */
+/** Session partitions that already have preloads registered. */
 const configuredPartitions = new Set<string>()
 
 interface Pane {
@@ -111,25 +74,12 @@ export class PaneManager {
 
   private createPane(config: PaneConfig): Pane {
     const ses = session.fromPartition(`persist:${config.id}`)
-    const paneIsGoogle = isGoogleProperty(config.url)
-    ses.setUserAgent(uaForPaneUrl(config.url))
-    ses.webRequest.onBeforeSendHeaders((details, callback) => {
-      const headers = details.requestHeaders
-      const spoofFirefox = paneIsGoogle || isAuthHostUrl(details.url)
-      if (spoofFirefox) {
-        headers['User-Agent'] = FIREFOX_UA
-        // Firefox sends no client hints; a Chromium brand list here
-        // contradicts the UA and trips Google's embedded-browser check.
-        for (const key of Object.keys(headers)) {
-          if (/^sec-ch-ua/i.test(key)) delete headers[key]
-        }
-      }
-      callback({ requestHeaders: headers })
-    })
+    ses.setUserAgent(realisticChromeUA())
     if (!configuredPartitions.has(config.id)) {
       configuredPartitions.add(config.id)
-      // Hides navigator.userAgentData on Google pages (see authshim.ts) —
-      // the one JS surface that would still expose the Chromium engine.
+      // Fills in the window.chrome surface real Chromium has but Electron
+      // lacks (see authshim.ts) — the JS tell Google's sign-in check uses
+      // to distinguish embedded browsers from a real Chromium.
       ses.registerPreloadScript({
         type: 'frame',
         filePath: join(__dirname, '../preload/authshim.js'),
@@ -194,15 +144,6 @@ export class PaneManager {
     })
     wc.on('did-navigate', push)
     wc.on('did-navigate-in-page', push)
-    // Keep navigator.userAgent consistent with the per-host header override
-    // so Google's sign-in page sees Firefox end to end. Google-property
-    // panes already run Firefox session-wide and never switch.
-    wc.on('did-start-navigation', (event) => {
-      if (!event.isMainFrame || event.isSameDocument) return
-      if (isGoogleProperty(pane.config.url)) return
-      const desired = isAuthHostUrl(event.url) ? FIREFOX_UA : realisticChromeUA()
-      if (wc.getUserAgent() !== desired) wc.setUserAgent(desired)
-    })
     wc.on('did-start-loading', push)
     wc.on('did-stop-loading', push)
     // -3 (ERR_ABORTED) fires for cancelled loads during normal navigation.
@@ -419,10 +360,7 @@ export class PaneManager {
       } else {
         const urlChanged = next.url !== pane.config.url
         pane.config = next
-        if (urlChanged) {
-          pane.view.webContents.session.setUserAgent(uaForPaneUrl(next.url))
-          void pane.view.webContents.loadURL(next.url)
-        }
+        if (urlChanged) void pane.view.webContents.loadURL(next.url)
       }
       this.pushPaneState(slot)
     })

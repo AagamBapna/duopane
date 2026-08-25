@@ -1,9 +1,15 @@
 // Registered on every pane session via ses.registerPreloadScript, so it runs
-// in every frame before site scripts. The pane sessions present a Firefox
-// identity to Google (UA string, no sec-ch-ua headers) to pass Google's
-// embedded-browser sign-in check; navigator.userAgentData is the one JS
-// surface that would still reveal Chromium (Firefox does not implement it),
-// so hide it in the page's main world on Google-owned hosts only.
+// in every frame before site scripts.
+//
+// Google's sign-in check ("This browser or app may not be secure") tells
+// embedded browsers apart from real ones. Spoofing a different browser is a
+// dead end: Google also fingerprints the TLS/HTTP2 stack, which is always
+// Chromium's. So DuoPane presents as what it actually is — plain Chromium
+// (Chrome UA matching the engine version, Chromium client-hint brands) —
+// which Google accepts from real Chromium builds. The one JS surface where
+// Electron differs from real Chromium is window.chrome: real builds expose
+// chrome.loadTimes/csi/app, Electron leaves it empty. Fill that in, in the
+// page's main world, on Google-owned hosts before any site script runs.
 //
 // NOTE: sandboxed preload — must stay a single bundled file with no shared
 // runtime imports (see chrome.ts).
@@ -20,28 +26,44 @@ const googleOwned =
   host.endsWith('.googleusercontent.com') ||
   host.endsWith('.youtube.com')
 
-// Every JS surface where Chromium contradicts the Firefox UA the session
-// presents. Values mirror real Firefox on macOS.
-const FIREFOX_MASK = `
-  const def = (obj, name, value) => {
-    try {
-      Object.defineProperty(obj, name, { get: () => value, configurable: true })
-    } catch (e) {}
-  }
-  def(Navigator.prototype, 'userAgentData', undefined) // Firefox: not implemented
-  def(Navigator.prototype, 'vendor', '')               // Chromium: "Google Inc."
-  def(Navigator.prototype, 'productSub', '20100101')   // Chromium: "20030107"
-  def(Navigator.prototype, 'oscpu', 'Intel Mac OS X 10.15') // Firefox-only
-  def(Navigator.prototype, 'buildID', '20181001000000')     // Firefox-only
-  try { delete window.chrome } catch (e) {}            // Firefox: absent
-  JSON.stringify({
-    uad: String(navigator.userAgentData),
-    vendor: navigator.vendor,
-    chrome: typeof window.chrome,
-  })`
+const CHROMIUM_MASK = `
+  try {
+    const c = window.chrome || (window.chrome = {})
+    if (!c.loadTimes) {
+      const t = performance.timeOrigin / 1000
+      c.loadTimes = function loadTimes() {
+        return {
+          requestTime: t, startLoadTime: t, commitLoadTime: t,
+          finishDocumentLoadTime: t, finishLoadTime: t, firstPaintTime: t,
+          firstPaintAfterLoadTime: 0, navigationType: 'Other',
+          wasFetchedViaSpdy: true, wasNpnNegotiated: true,
+          npnNegotiatedProtocol: 'h2', wasAlternateProtocolAvailable: false,
+          connectionInfo: 'h2',
+        }
+      }
+    }
+    if (!c.csi) {
+      c.csi = function csi() {
+        return {
+          onloadT: Date.now(), startE: Math.round(performance.timeOrigin),
+          pageT: performance.now(), tran: 15,
+        }
+      }
+    }
+    if (!c.app) {
+      c.app = {
+        isInstalled: false,
+        InstallState: { DISABLED: 'disabled', INSTALLED: 'installed', NOT_INSTALLED: 'not_installed' },
+        RunningState: { CANNOT_RUN: 'cannot_run', READY_TO_RUN: 'ready_to_run', RUNNING: 'running' },
+        getDetails() { return null },
+        getIsInstalled() { return false },
+      }
+    }
+  } catch (e) {}
+  JSON.stringify({ chrome: Object.keys(window.chrome || {}), vendor: navigator.vendor })`
 
 if (googleOwned) {
-  void webFrame.executeJavaScript(FIREFOX_MASK).then((result: unknown) => {
+  void webFrame.executeJavaScript(CHROMIUM_MASK).then((result: unknown) => {
     console.info(`[duopane] authshim on ${host}: ${String(result)}`)
   })
 }

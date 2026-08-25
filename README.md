@@ -69,39 +69,38 @@ shrink either pane below 320px.
 ## The Google login workaround
 
 Google blocks sign-in in browsers it detects as embedded ("This browser or
-app may not be secure"). Two layers of detection matter, and DuoPane
-handles both (see `src/main/panes.ts`):
+app may not be secure"). The approach that ships — after empirically
+testing what Electron actually sends on the wire — is to present as
+**consistent plain Chromium**, which Google accepts from real Chromium
+builds (see `src/main/panes.ts` and `src/preload/authshim.ts`):
 
 1. **User agent string.** Both pane sessions get a realistic Chrome desktop
-   UA via `session.setUserAgent()` — the standard Chrome UA for the exact
-   Chromium major version Electron bundles, with the `Electron/<version>`
-   and app-name tokens removed (`realisticChromeUA()`).
-2. **Client-hint headers.** A Chrome UA alone is not enough: Chromium still
-   sends `sec-ch-ua` headers whose brand list says `"Chromium"` without
-   `"Google Chrome"`, and Google flags the contradiction. Firefox sends no
-   client hints at all, so DuoPane presents a **Firefox** identity to
-   Google: any pane whose own site is a Google property (like Gemini) uses
-   a Firefox UA for its whole session, other panes swap to Firefox on the
-   Google auth hosts only, and all `sec-ch-ua*` headers are stripped on
-   those requests (`webRequest.onBeforeSendHeaders`).
-3. **`navigator.userAgentData`.** Google's sign-in JS also fingerprints the
-   engine: Chromium exposes `navigator.userAgentData` (with a bare
-   `"Chromium"` brand), which Firefox doesn't implement at all — a fatal
-   contradiction with the Firefox UA. A tiny session preload
-   (`src/preload/authshim.ts`) hides it in the page's main world on
-   Google-owned hosts before any site script runs. This is the one
-   deliberate deviation from "no preload in third-party panes": it runs
-   nothing except that property override, and only on Google hosts.
+   UA via `session.setUserAgent()` — the standard frozen Chrome UA for the
+   exact Chromium major version Electron bundles, with the
+   `Electron/<version>` and app-name tokens removed
+   (`realisticChromeUA()`). This stays consistent with the client-hint
+   brands (`"Chromium"`) and, crucially, with the TLS/HTTP2 network
+   fingerprint, which is always Chromium's and cannot be spoofed —
+   masquerading as Firefox or Safari is detectable at that layer and does
+   not survive Google's checks (verified the hard way).
+2. **`window.chrome`.** The one JS surface where Electron differs from a
+   real Chromium build: real builds expose `chrome.loadTimes`,
+   `chrome.csi`, and `chrome.app`, while Electron ships an empty
+   `window.chrome` — the classic embedded-browser tell. A tiny session
+   preload (`src/preload/authshim.ts`) fills these in, in the page's main
+   world, on Google-owned hosts before any site script runs. This is the
+   one deliberate deviation from "no preload in third-party panes": it
+   does nothing except that, only on Google hosts, and logs one
+   diagnostic line.
 
-The result is a consistent Firefox fingerprint (UA string, no client
-hints, no `userAgentData`) end to end for the sign-in flow. Sign-in
-redirects to the auth hosts are kept inside the pane so the flow can
-complete.
+Sign-in redirects to the auth hosts (`accounts.google.com` and friends)
+are kept inside the pane so the flow can complete.
 
 If Google still refuses on your account: a previously failed attempt can
 leave the session flagged, so open **Settings** and change the pane's ID
 (e.g. `gemini` → `gemini2`) to start a completely fresh session, then try
-again. Failing that, file an issue with what the pane showed.
+again. Google also weighs account-level risk signals that no client-side
+fix can address; if it persists, file an issue with what the pane showed.
 
 ## Limitations
 
