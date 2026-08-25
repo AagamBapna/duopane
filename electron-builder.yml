@@ -5,6 +5,7 @@ directories:
 files:
   - out/**/*
   - package.json
+afterPack: scripts/adhoc-sign.js
 mac:
   target:
     - target: dmg
