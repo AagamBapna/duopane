@@ -20,18 +20,28 @@ const googleOwned =
   host.endsWith('.googleusercontent.com') ||
   host.endsWith('.youtube.com')
 
+// Every JS surface where Chromium contradicts the Firefox UA the session
+// presents. Values mirror real Firefox on macOS.
+const FIREFOX_MASK = `
+  const def = (obj, name, value) => {
+    try {
+      Object.defineProperty(obj, name, { get: () => value, configurable: true })
+    } catch (e) {}
+  }
+  def(Navigator.prototype, 'userAgentData', undefined) // Firefox: not implemented
+  def(Navigator.prototype, 'vendor', '')               // Chromium: "Google Inc."
+  def(Navigator.prototype, 'productSub', '20100101')   // Chromium: "20030107"
+  def(Navigator.prototype, 'oscpu', 'Intel Mac OS X 10.15') // Firefox-only
+  def(Navigator.prototype, 'buildID', '20181001000000')     // Firefox-only
+  try { delete window.chrome } catch (e) {}            // Firefox: absent
+  JSON.stringify({
+    uad: String(navigator.userAgentData),
+    vendor: navigator.vendor,
+    chrome: typeof window.chrome,
+  })`
+
 if (googleOwned) {
-  void webFrame
-    .executeJavaScript(
-      `try {
-        Object.defineProperty(Navigator.prototype, 'userAgentData', {
-          get: () => undefined,
-          configurable: true,
-        })
-      } catch (e) {}
-      String(navigator.userAgentData)`,
-    )
-    .then((result: unknown) => {
-      console.info(`[duopane] authshim on ${host}: userAgentData=${String(result)}`)
-    })
+  void webFrame.executeJavaScript(FIREFOX_MASK).then((result: unknown) => {
+    console.info(`[duopane] authshim on ${host}: ${String(result)}`)
+  })
 }
