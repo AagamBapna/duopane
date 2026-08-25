@@ -1,0 +1,125 @@
+/* --topbar-h must match CHROME_TOPBAR_HEIGHT in src/shared/types.ts;
+   --gap must match DIVIDER_GAP. */
+:root {
+  --topbar-h: 40px;
+  --gap: 9px;
+  --fg: rgba(0, 0, 0, 0.85);
+  --fg-dim: rgba(0, 0, 0, 0.55);
+  --btn-bg: rgba(120, 120, 128, 0.14);
+  --btn-bg-hover: rgba(120, 120, 128, 0.28);
+  --line: rgba(120, 120, 128, 0.45);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fg: rgba(255, 255, 255, 0.88);
+    --fg-dim: rgba(255, 255, 255, 0.55);
+    --btn-bg: rgba(120, 120, 128, 0.26);
+    --btn-bg-hover: rgba(120, 120, 128, 0.42);
+    --line: rgba(120, 120, 128, 0.55);
+  }
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  user-select: none;
+}
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  font:
+    13px -apple-system,
+    system-ui,
+    sans-serif;
+  color: var(--fg);
+}
+
+#topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--topbar-h);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px 0 84px; /* left inset clears the traffic lights */
+  -webkit-app-region: drag;
+}
+
+.pane-controls {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.pane-controls.right {
+  justify-content: flex-end;
+}
+.global-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pane-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  color: var(--fg-dim);
+}
+.favicon {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  display: none;
+  flex: none;
+}
+
+button {
+  -webkit-app-region: no-drag;
+  flex: none;
+  width: 26px;
+  height: 22px;
+  border: none;
+  border-radius: 5px;
+  background: var(--btn-bg);
+  color: var(--fg);
+  font-size: 13px;
+  line-height: 1;
+  cursor: default;
+}
+button:hover:not(:disabled) {
+  background: var(--btn-bg-hover);
+}
+button:disabled {
+  opacity: 0.35;
+}
+button.active {
+  background: rgba(10, 132, 255, 0.45);
+}
+
+#divider {
+  position: absolute;
+  top: var(--topbar-h);
+  bottom: 0;
+  width: var(--gap);
+  display: flex;
+  justify-content: center;
+  cursor: col-resize;
+  -webkit-app-region: no-drag;
+}
+#divider .line {
+  width: 1px;
+  height: 100%;
+  background: var(--line);
+}
+
+body.dragging {
+  cursor: col-resize;
+}

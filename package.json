@@ -1,0 +1,24 @@
+{
+  "name": "duopane",
+  "version": "1.0.0",
+  "description": "Two AI chat web apps side by side in one native macOS window",
+  "main": "./out/main/index.js",
+  "author": "Aagam Bapna",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "dev": "electron-vite dev",
+    "start": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "build": "npm run typecheck && electron-vite build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac",
+    "build:unpacked": "electron-vite build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --dir"
+  },
+  "devDependencies": {
+    "@types/node": "^26.3.0",
+    "electron": "^44.0.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.6"
+  }
+}

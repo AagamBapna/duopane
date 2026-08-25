@@ -1,0 +1,15 @@
+appId: com.aagambapna.duopane
+productName: DuoPane
+directories:
+  output: dist
+files:
+  - out/**/*
+  - package.json
+mac:
+  target:
+    - target: dmg
+      arch:
+        - universal
+  minimumSystemVersion: '12.0'
+  category: public.app-category.productivity
+npmRebuild: false

@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>drag glass</title>
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self' ws: wss:"
+    />
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        background: transparent;
+        cursor: col-resize;
+      }
+    </style>
+  </head>
+  <body>
+    <script type="module" src="./src/glass.ts"></script>
+  </body>
+</html>

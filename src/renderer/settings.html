@@ -1,0 +1,115 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Settings</title>
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self' ws: wss:"
+    />
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 20px;
+        font:
+          13px -apple-system,
+          system-ui,
+          sans-serif;
+        background: Canvas;
+        color: CanvasText;
+        user-select: none;
+      }
+      form {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      fieldset {
+        border: 1px solid color-mix(in srgb, CanvasText 20%, transparent);
+        border-radius: 8px;
+        padding: 10px 12px 12px;
+        display: grid;
+        grid-template-columns: 52px 1fr;
+        gap: 8px 10px;
+        align-items: center;
+      }
+      legend {
+        font-weight: 600;
+        padding: 0 4px;
+      }
+      label {
+        text-align: right;
+        opacity: 0.75;
+      }
+      input {
+        width: 100%;
+        padding: 4px 6px;
+        border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
+        border-radius: 5px;
+        background: Field;
+        color: FieldText;
+        font: inherit;
+      }
+      .hint {
+        font-size: 11px;
+        opacity: 0.6;
+        margin: 0;
+      }
+      .error {
+        color: #e0443e;
+        min-height: 16px;
+        margin: 0;
+      }
+      .buttons {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+      button {
+        font: inherit;
+        padding: 5px 14px;
+        border-radius: 6px;
+        border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
+        background: Field;
+        color: CanvasText;
+      }
+      button.primary {
+        background: #0a84ff;
+        border-color: #0a84ff;
+        color: white;
+      }
+    </style>
+  </head>
+  <body>
+    <form id="form">
+      <fieldset>
+        <legend>Left pane</legend>
+        <label for="id-0">ID</label><input id="id-0" spellcheck="false" />
+        <label for="label-0">Label</label><input id="label-0" spellcheck="false" />
+        <label for="url-0">URL</label><input id="url-0" spellcheck="false" />
+      </fieldset>
+      <fieldset>
+        <legend>Right pane</legend>
+        <label for="id-1">ID</label><input id="id-1" spellcheck="false" />
+        <label for="label-1">Label</label><input id="label-1" spellcheck="false" />
+        <label for="url-1">URL</label><input id="url-1" spellcheck="false" />
+      </fieldset>
+      <p class="hint">
+        The ID names the pane's persistent login session. Changing it starts a fresh session for
+        that pane; changing it back restores the old login.
+      </p>
+      <p class="error" id="error"></p>
+      <div class="buttons">
+        <button type="button" id="cancel">Cancel</button>
+        <button type="submit" class="primary" id="save">Save</button>
+      </div>
+    </form>
+    <script type="module" src="./src/settings.ts"></script>
+  </body>
+</html>
