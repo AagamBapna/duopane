@@ -50,10 +50,32 @@ function isAuthHostUrl(url: string): boolean {
   }
 }
 
+/**
+ * A pane whose own site is a Google property gets the Firefox identity for
+ * its whole session: swapping UA mid-session leaves contradictory signals
+ * (cookies set as "Chrome", sign-in as "Firefox") that Google flags.
+ */
+function isGoogleProperty(url: string): boolean {
+  try {
+    const host = new URL(url).hostname
+    return host === 'google.com' || host.endsWith('.google.com')
+  } catch {
+    return false
+  }
+}
+
+function uaForPaneUrl(url: string): string {
+  return isGoogleProperty(url) ? FIREFOX_UA : realisticChromeUA()
+}
+
+/** Session partitions that already have webRequest hooks and preloads. */
+const configuredPartitions = new Set<string>()
+
 interface Pane {
   config: PaneConfig
   view: WebContentsView
   faviconUrl: string
+  lastCrashRecovery: number
 }
 
 export class PaneManager {
@@ -89,17 +111,30 @@ export class PaneManager {
 
   private createPane(config: PaneConfig): Pane {
     const ses = session.fromPartition(`persist:${config.id}`)
-    ses.setUserAgent(realisticChromeUA())
+    const paneIsGoogle = isGoogleProperty(config.url)
+    ses.setUserAgent(uaForPaneUrl(config.url))
     ses.webRequest.onBeforeSendHeaders((details, callback) => {
       const headers = details.requestHeaders
-      if (isAuthHostUrl(details.url)) {
+      const spoofFirefox = paneIsGoogle || isAuthHostUrl(details.url)
+      if (spoofFirefox) {
         headers['User-Agent'] = FIREFOX_UA
+        // Firefox sends no client hints; a Chromium brand list here
+        // contradicts the UA and trips Google's embedded-browser check.
         for (const key of Object.keys(headers)) {
           if (/^sec-ch-ua/i.test(key)) delete headers[key]
         }
       }
       callback({ requestHeaders: headers })
     })
+    if (!configuredPartitions.has(config.id)) {
+      configuredPartitions.add(config.id)
+      // Hides navigator.userAgentData on Google pages (see authshim.ts) —
+      // the one JS surface that would still expose the Chromium engine.
+      ses.registerPreloadScript({
+        type: 'frame',
+        filePath: join(__dirname, '../preload/authshim.js'),
+      })
+    }
     const view = new WebContentsView({
       webPreferences: {
         session: ses,
@@ -108,7 +143,7 @@ export class PaneManager {
         sandbox: true,
       },
     })
-    const pane: Pane = { config, view, faviconUrl: '' }
+    const pane: Pane = { config, view, faviconUrl: '', lastCrashRecovery: 0 }
     this.wireWebContents(pane)
     this.win.contentView.addChildView(view)
     return pane
@@ -160,14 +195,28 @@ export class PaneManager {
     wc.on('did-navigate', push)
     wc.on('did-navigate-in-page', push)
     // Keep navigator.userAgent consistent with the per-host header override
-    // so Google's sign-in page sees Firefox end to end.
+    // so Google's sign-in page sees Firefox end to end. Google-property
+    // panes already run Firefox session-wide and never switch.
     wc.on('did-start-navigation', (event) => {
       if (!event.isMainFrame || event.isSameDocument) return
+      if (isGoogleProperty(pane.config.url)) return
       const desired = isAuthHostUrl(event.url) ? FIREFOX_UA : realisticChromeUA()
       if (wc.getUserAgent() !== desired) wc.setUserAgent(desired)
     })
     wc.on('did-start-loading', push)
     wc.on('did-stop-loading', push)
+    // -3 (ERR_ABORTED) fires for cancelled loads during normal navigation.
+    wc.on('did-fail-load', (_event, errorCode, _desc, _url, isMainFrame) => {
+      if (isMainFrame && errorCode !== -3) push()
+    })
+    wc.on('render-process-gone', (_event, details) => {
+      if (details.reason === 'clean-exit' || details.reason === 'killed') return
+      // Auto-recover from a crashed site, but never in a tight loop.
+      const now = Date.now()
+      if (now - pane.lastCrashRecovery < 10_000) return
+      pane.lastCrashRecovery = now
+      void wc.loadURL(pane.config.url)
+    })
     wc.on('focus', () => {
       const slot = this.slotOf(pane)
       if (slot) this.focused = slot
@@ -289,6 +338,11 @@ export class PaneManager {
 
   collapse(slot: PaneSlot | null): void {
     this.collapsed = slot
+    // Focus-driven shortcuts (Cmd+R etc.) should act on the visible pane.
+    if (slot !== null && this.focused === slot) {
+      this.focused = slot === 'left' ? 'right' : 'left'
+      this.slots[this.focused].view.webContents.focus()
+    }
     this.layout()
   }
 
@@ -305,7 +359,10 @@ export class PaneManager {
     const wc = this.slots[slot].view.webContents
     switch (action) {
       case 'reload':
-        wc.reload()
+        // A pane whose initial load failed (e.g. launched offline) has no
+        // URL to reload; retry the configured one instead.
+        if (wc.getURL()) wc.reload()
+        else void wc.loadURL(this.slots[slot].config.url)
         break
       case 'back':
         if (wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack()
@@ -362,7 +419,10 @@ export class PaneManager {
       } else {
         const urlChanged = next.url !== pane.config.url
         pane.config = next
-        if (urlChanged) void pane.view.webContents.loadURL(next.url)
+        if (urlChanged) {
+          pane.view.webContents.session.setUserAgent(uaForPaneUrl(next.url))
+          void pane.view.webContents.loadURL(next.url)
+        }
       }
       this.pushPaneState(slot)
     })

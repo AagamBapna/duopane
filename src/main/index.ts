@@ -10,6 +10,8 @@ import { PaneManager } from './panes'
 // ~/Library/Application Support/DuoPane even in dev.
 app.setName('DuoPane')
 
+let mainWin: BrowserWindow | null = null
+
 function createWindow(): void {
   const config = loadConfig()
   const win = new BrowserWindow({
@@ -38,9 +40,25 @@ function createWindow(): void {
   const pm = new PaneManager(win, config)
   registerIpc(pm, win)
   buildMenu(pm, win)
+  mainWin = win
+  win.on('closed', () => {
+    mainWin = null
+  })
 }
 
-void app.whenReady().then(createWindow)
+// Two instances would share the same persist: partitions and corrupt the
+// session profiles, so hand off to the running instance instead.
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (mainWin) {
+      if (mainWin.isMinimized()) mainWin.restore()
+      mainWin.focus()
+    }
+  })
+  void app.whenReady().then(createWindow)
+}
 
 app.on('window-all-closed', () => {
   app.quit()

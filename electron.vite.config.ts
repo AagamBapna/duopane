@@ -12,6 +12,7 @@ export default defineConfig({
         input: {
           chrome: resolve(__dirname, 'src/preload/chrome.ts'),
           settings: resolve(__dirname, 'src/preload/settings.ts'),
+          authshim: resolve(__dirname, 'src/preload/authshim.ts'),
         },
       },
     },

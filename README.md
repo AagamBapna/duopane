@@ -79,19 +79,29 @@ handles both (see `src/main/panes.ts`):
 2. **Client-hint headers.** A Chrome UA alone is not enough: Chromium still
    sends `sec-ch-ua` headers whose brand list says `"Chromium"` without
    `"Google Chrome"`, and Google flags the contradiction. Firefox sends no
-   client hints at all, so on the Google auth hosts only
-   (`accounts.google.com` and friends) DuoPane swaps in a Firefox UA — both
-   at the header level (`webRequest.onBeforeSendHeaders`, which also strips
-   all `sec-ch-ua*` headers) and for `navigator.userAgent`
-   (`webContents.setUserAgent` on navigation). Google sees a plain Firefox
-   for the sign-in flow, and the pane goes back to Chrome the moment it
-   navigates away. Sign-in redirects to the auth hosts are kept inside the
-   pane so the flow can complete.
+   client hints at all, so DuoPane presents a **Firefox** identity to
+   Google: any pane whose own site is a Google property (like Gemini) uses
+   a Firefox UA for its whole session, other panes swap to Firefox on the
+   Google auth hosts only, and all `sec-ch-ua*` headers are stripped on
+   those requests (`webRequest.onBeforeSendHeaders`).
+3. **`navigator.userAgentData`.** Google's sign-in JS also fingerprints the
+   engine: Chromium exposes `navigator.userAgentData` (with a bare
+   `"Chromium"` brand), which Firefox doesn't implement at all — a fatal
+   contradiction with the Firefox UA. A tiny session preload
+   (`src/preload/authshim.ts`) hides it in the page's main world on
+   Google-owned hosts before any site script runs. This is the one
+   deliberate deviation from "no preload in third-party panes": it runs
+   nothing except that property override, and only on Google hosts.
 
-If Google still refuses on your account, use the pane's **Open in browser**
-button (`↗`) to sign in via your system browser — note that cookies don't
-transfer between the system browser and the pane's session, so this is a
-diagnostic rather than a fix — and file an issue with what the pane showed.
+The result is a consistent Firefox fingerprint (UA string, no client
+hints, no `userAgentData`) end to end for the sign-in flow. Sign-in
+redirects to the auth hosts are kept inside the pane so the flow can
+complete.
+
+If Google still refuses on your account: a previously failed attempt can
+leave the session flagged, so open **Settings** and change the pane's ID
+(e.g. `gemini` → `gemini2`) to start a completely fresh session, then try
+again. Failing that, file an issue with what the pane showed.
 
 ## Limitations
 

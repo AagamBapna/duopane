@@ -26,6 +26,9 @@ function sanitizeConfig(input: AppConfig, dividerRatio: number): AppConfig | str
   }))
   for (const pane of panes) {
     if (!pane.id) return 'Pane ids must not be empty.'
+    // The id becomes a session partition (a profile directory name).
+    if (!/^[A-Za-z0-9._-]+$/.test(pane.id))
+      return 'Pane ids may only contain letters, digits, ".", "_" and "-".'
     if (!pane.label) return 'Pane labels must not be empty.'
     if (!isValidUrl(pane.url)) return `Not a valid http(s) URL: "${pane.url}"`
   }

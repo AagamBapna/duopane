@@ -29,7 +29,8 @@ function isPaneConfig(value: unknown): value is PaneConfig {
   const pane = value as Record<string, unknown>
   return (
     typeof pane.id === 'string' &&
-    pane.id.length > 0 &&
+    // The id becomes a session partition (a profile directory name).
+    /^[A-Za-z0-9._-]+$/.test(pane.id) &&
     typeof pane.label === 'string' &&
     typeof pane.url === 'string' &&
     isValidUrl(pane.url)
