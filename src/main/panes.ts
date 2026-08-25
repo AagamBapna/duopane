@@ -31,6 +31,25 @@ const AUTH_HOSTS = [
   'accounts.googleusercontent.com',
 ]
 
+/**
+ * Google rejects sign-in ("This browser or app may not be secure") when the
+ * UA claims Chrome but the Chromium client-hint headers (sec-ch-ua: with a
+ * "Chromium" brand and no "Google Chrome") contradict it. Firefox sends no
+ * client hints at all, so presenting Firefox on the auth hosts only gives
+ * Google nothing to mismatch. The rest of the session keeps the Chrome UA.
+ */
+const FIREFOX_UA =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:140.0) Gecko/20100101 Firefox/140.0'
+
+function isAuthHostUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname
+    return AUTH_HOSTS.some((auth) => host === auth || host.endsWith(`.${auth}`))
+  } catch {
+    return false
+  }
+}
+
 interface Pane {
   config: PaneConfig
   view: WebContentsView
@@ -71,6 +90,16 @@ export class PaneManager {
   private createPane(config: PaneConfig): Pane {
     const ses = session.fromPartition(`persist:${config.id}`)
     ses.setUserAgent(realisticChromeUA())
+    ses.webRequest.onBeforeSendHeaders((details, callback) => {
+      const headers = details.requestHeaders
+      if (isAuthHostUrl(details.url)) {
+        headers['User-Agent'] = FIREFOX_UA
+        for (const key of Object.keys(headers)) {
+          if (/^sec-ch-ua/i.test(key)) delete headers[key]
+        }
+      }
+      callback({ requestHeaders: headers })
+    })
     const view = new WebContentsView({
       webPreferences: {
         session: ses,
@@ -130,6 +159,13 @@ export class PaneManager {
     })
     wc.on('did-navigate', push)
     wc.on('did-navigate-in-page', push)
+    // Keep navigator.userAgent consistent with the per-host header override
+    // so Google's sign-in page sees Firefox end to end.
+    wc.on('did-start-navigation', (event) => {
+      if (!event.isMainFrame || event.isSameDocument) return
+      const desired = isAuthHostUrl(event.url) ? FIREFOX_UA : realisticChromeUA()
+      if (wc.getUserAgent() !== desired) wc.setUserAgent(desired)
+    })
     wc.on('did-start-loading', push)
     wc.on('did-stop-loading', push)
     wc.on('focus', () => {

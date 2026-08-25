@@ -68,24 +68,30 @@ shrink either pane below 320px.
 
 ## The Google login workaround
 
-Google blocks OAuth sign-in in browsers it detects as embedded, keying off
-the `Electron/<version>` and app-name tokens in the user agent. DuoPane sets
-a realistic Chrome desktop user agent on **both** pane sessions via
-`session.setUserAgent()` — the standard Chrome UA string for the exact
-Chromium major version Electron bundles, with the Electron and app-name
-tokens removed (see `realisticChromeUA()` in `src/main/panes.ts`). Sign-in
-redirects to `accounts.google.com` are kept inside the pane so the OAuth
-flow can complete.
+Google blocks sign-in in browsers it detects as embedded ("This browser or
+app may not be secure"). Two layers of detection matter, and DuoPane
+handles both (see `src/main/panes.ts`):
 
-This UA-spoofing approach is what ships. If Google still refuses sign-in on
-your account (it occasionally tightens detection), the fallback is: sign in
-to your Google account in your system browser first is *not* enough, since
-sessions aren't shared — instead use the pane's **Open in browser** button
-(`↗`), complete sign-in there, and if that still doesn't carry over, watch
-for a "browser not secure" page in the pane and file an issue; the next
-step would be catching the auth URL and completing it via the system
-browser with a custom redirect, which is intentionally not wired up until
-the simple approach actually fails.
+1. **User agent string.** Both pane sessions get a realistic Chrome desktop
+   UA via `session.setUserAgent()` — the standard Chrome UA for the exact
+   Chromium major version Electron bundles, with the `Electron/<version>`
+   and app-name tokens removed (`realisticChromeUA()`).
+2. **Client-hint headers.** A Chrome UA alone is not enough: Chromium still
+   sends `sec-ch-ua` headers whose brand list says `"Chromium"` without
+   `"Google Chrome"`, and Google flags the contradiction. Firefox sends no
+   client hints at all, so on the Google auth hosts only
+   (`accounts.google.com` and friends) DuoPane swaps in a Firefox UA — both
+   at the header level (`webRequest.onBeforeSendHeaders`, which also strips
+   all `sec-ch-ua*` headers) and for `navigator.userAgent`
+   (`webContents.setUserAgent` on navigation). Google sees a plain Firefox
+   for the sign-in flow, and the pane goes back to Chrome the moment it
+   navigates away. Sign-in redirects to the auth hosts are kept inside the
+   pane so the flow can complete.
+
+If Google still refuses on your account, use the pane's **Open in browser**
+button (`↗`) to sign in via your system browser — note that cookies don't
+transfer between the system browser and the pane's session, so this is a
+diagnostic rather than a fix — and file an issue with what the pane showed.
 
 ## Limitations
 
