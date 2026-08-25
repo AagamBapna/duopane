@@ -53,6 +53,10 @@ export class PaneManager {
       left: this.createPane(config.panes[0]),
       right: this.createPane(config.panes[1]),
     }
+    // Load only after this.slots is assigned: loadURL can emit events
+    // synchronously, and their handlers look panes up via slotOf().
+    this.loadPane(this.slots.left)
+    this.loadPane(this.slots.right)
     this.glass = this.createGlass()
     win.on('resize', () => this.layout())
     win.webContents.on('did-finish-load', () => {
@@ -78,8 +82,11 @@ export class PaneManager {
     const pane: Pane = { config, view, faviconUrl: '' }
     this.wireWebContents(pane)
     this.win.contentView.addChildView(view)
-    void view.webContents.loadURL(config.url)
     return pane
+  }
+
+  private loadPane(pane: Pane): void {
+    void pane.view.webContents.loadURL(pane.config.url)
   }
 
   /**
@@ -160,6 +167,7 @@ export class PaneManager {
   }
 
   private slotOf(pane: Pane): PaneSlot | null {
+    if (!this.slots) return null
     if (this.slots.left === pane) return 'left'
     if (this.slots.right === pane) return 'right'
     return null
@@ -314,6 +322,7 @@ export class PaneManager {
         this.win.contentView.removeChildView(pane.view)
         pane.view.webContents.close()
         this.slots[slot] = this.createPane(next)
+        this.loadPane(this.slots[slot])
       } else {
         const urlChanged = next.url !== pane.config.url
         pane.config = next

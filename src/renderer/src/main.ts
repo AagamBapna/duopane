@@ -128,3 +128,4 @@ byId<HTMLButtonElement>('settings').addEventListener('click', () => api.openSett
 
 window.addEventListener('resize', positionDivider)
 positionDivider()
+console.info('[duopane] chrome renderer ready')
