@@ -13,6 +13,14 @@ import { flushWindowState, saveBounds, savedBounds } from './window-state'
 // ~/Library/Application Support/DuoPane even in dev.
 app.setName('DuoPane')
 
+// OpenAI's Cloudflare CDN returns 403 for the login flow's dynamic JS chunks
+// over HTTP/2 and QUIC inside Electron, so ChatGPT sign-in fails with a
+// generic "we ran into an issue signing you in". Disabling both transports
+// is the same workaround OpenAI's own desktop app uses (openai/codex#30361).
+// Must be set before 'ready'.
+app.commandLine.appendSwitch('disable-quic')
+app.commandLine.appendSwitch('disable-http2')
+
 // In a packaged build the icon comes from the bundle; in dev the process is
 // generic Electron, so point the dock at the source icon when it exists.
 function setDevDockIcon(): void {

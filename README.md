@@ -121,6 +121,23 @@ leave the session flagged, so open **Settings** and change the pane's ID
 again. Google also weighs account-level risk signals that no client-side
 fix can address; if it persists, file an issue with what the pane showed.
 
+### ChatGPT / other sign-ins across domains
+
+Two more things make third-party sign-in work in-pane:
+
+- **Cross-domain auth navigation.** Sign-in often redirects the tab to a
+  separate auth domain (e.g. `chatgpt.com` → `auth.openai.com` →
+  `accounts.google.com`). Navigation is classified by registrable domain
+  plus an auth-host heuristic (`auth.*`, `login.*`, `accounts.*`, `oauth`,
+  `auth0`, `okta`, …) so these stay in the pane instead of being treated as
+  external links; only genuinely different sites are handed to the system
+  browser.
+- **HTTP/2 and QUIC are disabled** (`--disable-quic --disable-http2`).
+  OpenAI's Cloudflare CDN returns 403 for the login flow's dynamic JS
+  chunks over those transports inside Electron, which otherwise breaks
+  ChatGPT sign-in with "we ran into an issue signing you in" — the same
+  workaround OpenAI's own desktop app uses.
+
 ## Limitations
 
 - This app wraps the **web** versions of Claude and Gemini. macOS provides
