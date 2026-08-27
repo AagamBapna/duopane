@@ -5,6 +5,7 @@ import { CHROME_TOPBAR_HEIGHT, DIVIDER_GAP, MIN_PANE_WIDTH } from '../shared/typ
 import { loadConfig } from './config'
 import { registerIpc } from './ipc'
 import { buildMenu } from './menu'
+import type { PaneManager as PaneManagerType } from './panes'
 import { PaneManager } from './panes'
 import { flushWindowState, saveBounds, savedBounds } from './window-state'
 
@@ -23,6 +24,7 @@ function setDevDockIcon(): void {
 }
 
 let mainWin: BrowserWindow | null = null
+let paneManager: PaneManagerType | null = null
 
 function createWindow(): void {
   const config = loadConfig()
@@ -67,6 +69,7 @@ function createWindow(): void {
   registerIpc(pm, win)
   buildMenu(pm, win)
   mainWin = win
+  paneManager = pm
   win.on('closed', () => {
     mainWin = null
   })
@@ -89,7 +92,10 @@ if (!app.requestSingleInstanceLock()) {
   })
 }
 
-app.on('before-quit', () => flushWindowState())
+app.on('before-quit', () => {
+  paneManager?.flushConfig()
+  flushWindowState()
+})
 
 app.on('window-all-closed', () => {
   app.quit()

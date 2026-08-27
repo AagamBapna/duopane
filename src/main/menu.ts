@@ -3,6 +3,15 @@ import type { PaneManager } from './panes'
 import { openSettingsWindow } from './settings-window'
 
 export function buildMenu(pm: PaneManager, win: BrowserWindow): void {
+  const focusShortcuts: Electron.MenuItemConstructorOptions[] = []
+  for (let i = 0; i < 9; i++) {
+    focusShortcuts.push({
+      label: `Focus Pane ${i + 1}`,
+      accelerator: `Cmd+${i + 1}`,
+      click: () => pm.focusPane(i),
+    })
+  }
+
   const template: Electron.MenuItemConstructorOptions[] = [
     {
       label: app.name,
@@ -41,14 +50,10 @@ export function buildMenu(pm: PaneManager, win: BrowserWindow): void {
         { label: 'Forward', accelerator: 'Cmd+]', click: () => pm.focusedPaneAction('forward') },
         { type: 'separator' },
         { label: 'Copy Current URL', accelerator: 'Cmd+Shift+C', click: () => pm.copyFocusedUrl() },
-        {
-          label: 'Open in Browser',
-          click: () => pm.focusedPaneAction('open-external'),
-        },
+        { label: 'Open in Browser', click: () => pm.focusedPaneAction('open-external') },
         { type: 'separator' },
         { label: 'Zoom In', accelerator: 'CommandOrControl+=', click: () => pm.zoomFocused('in') },
         { label: 'Zoom Out', accelerator: 'CommandOrControl+-', click: () => pm.zoomFocused('out') },
-        // Cmd+0 is Reset Split; Actual Size stays menu-only to avoid the clash.
         { label: 'Actual Size', click: () => pm.zoomFocused('reset') },
         { type: 'separator' },
         { role: 'togglefullscreen' },
@@ -57,15 +62,24 @@ export function buildMenu(pm: PaneManager, win: BrowserWindow): void {
     {
       label: 'Panes',
       submenu: [
-        { label: 'Focus Left Pane', accelerator: 'Cmd+1', click: () => pm.focusPane('left') },
-        { label: 'Focus Right Pane', accelerator: 'Cmd+2', click: () => pm.focusPane('right') },
+        { label: 'New Pane', accelerator: 'Cmd+T', click: () => pm.addPane() },
+        { label: 'Close Pane', accelerator: 'Cmd+Shift+W', click: () => pm.removePane(pm.focusedIndex()) },
         { type: 'separator' },
-        { label: 'Swap Panes', accelerator: 'Cmd+\\', click: () => pm.swap() },
-        { label: 'Reset Split 50/50', accelerator: 'Cmd+0', click: () => pm.resetSplit() },
+        ...focusShortcuts,
         { type: 'separator' },
-        { label: 'Collapse Left', click: () => pm.collapse('left') },
-        { label: 'Collapse Right', click: () => pm.collapse('right') },
-        { label: 'Show Both', click: () => pm.collapse(null) },
+        {
+          label: 'Move Pane Left',
+          accelerator: 'Cmd+Shift+[',
+          click: () => pm.movePane(pm.focusedIndex(), -1),
+        },
+        {
+          label: 'Move Pane Right',
+          accelerator: 'Cmd+Shift+]',
+          click: () => pm.movePane(pm.focusedIndex(), 1),
+        },
+        { type: 'separator' },
+        { label: 'Show Only This Pane', click: () => pm.setSolo(pm.focusedIndex()) },
+        { label: 'Equalize / Show All', accelerator: 'Cmd+0', click: () => pm.equalize() },
       ],
     },
     { role: 'windowMenu' },

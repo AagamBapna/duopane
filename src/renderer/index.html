@@ -11,31 +11,14 @@
   </head>
   <body>
     <header id="topbar">
-      <div class="pane-controls" id="controls-left">
-        <img class="favicon" id="favicon-left" alt="" />
-        <span class="pane-title" id="title-left">Left</span>
-        <button id="back-left" title="Back" disabled>&#8249;</button>
-        <button id="forward-left" title="Forward" disabled>&#8250;</button>
-        <button id="reload-left" title="Reload">&#8635;</button>
-        <button id="external-left" title="Open in browser">&#8599;</button>
-      </div>
+      <div id="pane-bar"></div>
       <div class="global-controls">
-        <button id="collapse-left" title="Collapse left pane">&#8676;</button>
-        <button id="swap" title="Swap panes (&#8984;\)">&#8646;</button>
-        <button id="reset" title="Reset split 50/50 (&#8984;0)">&#9707;</button>
-        <button id="collapse-right" title="Collapse right pane">&#8677;</button>
-        <button id="settings" title="Settings (&#8984;,)">&#9881;</button>
-      </div>
-      <div class="pane-controls right" id="controls-right">
-        <button id="back-right" title="Back" disabled>&#8249;</button>
-        <button id="forward-right" title="Forward" disabled>&#8250;</button>
-        <button id="reload-right" title="Reload">&#8635;</button>
-        <button id="external-right" title="Open in browser">&#8599;</button>
-        <span class="pane-title" id="title-right">Right</span>
-        <img class="favicon" id="favicon-right" alt="" />
+        <button id="add-pane" title="New pane (⌘T)">＋</button>
+        <button id="equalize" title="Equalize / show all (⌘0)">▦</button>
+        <button id="settings" title="Settings (⌘,)">⚙</button>
       </div>
     </header>
-    <div id="divider"><span class="line"></span></div>
+    <div id="dividers"></div>
     <script type="module" src="./src/main.ts"></script>
   </body>
 </html>

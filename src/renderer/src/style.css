@@ -1,13 +1,12 @@
-/* --topbar-h must match CHROME_TOPBAR_HEIGHT in src/shared/types.ts;
-   --gap must match DIVIDER_GAP. */
+/* --topbar-h must match CHROME_TOPBAR_HEIGHT in src/shared/types.ts. */
 :root {
   --topbar-h: 40px;
-  --gap: 9px;
   --fg: rgba(0, 0, 0, 0.85);
   --fg-dim: rgba(0, 0, 0, 0.55);
   --btn-bg: rgba(120, 120, 128, 0.14);
   --btn-bg-hover: rgba(120, 120, 128, 0.28);
   --line: rgba(120, 120, 128, 0.45);
+  --accent: rgba(10, 132, 255, 0.55);
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -43,54 +42,65 @@ body {
   left: 0;
   right: 0;
   height: var(--topbar-h);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 12px 0 84px; /* left inset clears the traffic lights */
   -webkit-app-region: drag;
 }
 
-.pane-controls {
-  flex: 1 1 0;
+/* Per-pane control clusters are positioned absolutely over their column. */
+#pane-bar {
+  position: absolute;
+  inset: 0;
+}
+.pane-cluster {
+  position: absolute;
+  top: 0;
+  height: var(--topbar-h);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
+  padding: 0 8px;
+  overflow: hidden;
+}
+.pane-cluster .favicon {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  flex: none;
+  display: none;
+}
+.pane-cluster .title {
+  flex: 1 1 auto;
   min-width: 0;
-}
-.pane-controls.right {
-  justify-content: flex-end;
-}
-.global-controls {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.pane-title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 500;
   color: var(--fg-dim);
 }
-.favicon {
-  width: 16px;
-  height: 16px;
-  border-radius: 3px;
-  display: none;
-  flex: none;
+.pane-cluster.focused .title {
+  color: var(--fg);
+}
+
+.global-controls {
+  position: absolute;
+  top: 0;
+  right: 12px;
+  height: var(--topbar-h);
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 button {
   -webkit-app-region: no-drag;
   flex: none;
-  width: 26px;
   height: 22px;
+  min-width: 24px;
+  padding: 0 5px;
   border: none;
   border-radius: 5px;
   background: var(--btn-bg);
   color: var(--fg);
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1;
   cursor: default;
 }
@@ -100,21 +110,29 @@ button:hover:not(:disabled) {
 button:disabled {
   opacity: 0.35;
 }
-button.active {
-  background: rgba(10, 132, 255, 0.45);
+.pane-cluster.focused {
+  box-shadow: inset 0 -2px 0 var(--accent);
 }
 
-#divider {
+#dividers {
   position: absolute;
   top: var(--topbar-h);
+  left: 0;
+  right: 0;
   bottom: 0;
-  width: var(--gap);
+  pointer-events: none;
+}
+.divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
   display: flex;
   justify-content: center;
   cursor: col-resize;
+  pointer-events: auto;
   -webkit-app-region: no-drag;
 }
-#divider .line {
+.divider .line {
   width: 1px;
   height: 100%;
   background: var(--line);

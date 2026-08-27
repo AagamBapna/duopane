@@ -1,66 +1,134 @@
-import type { AppConfig, PaneConfig, PaneSlot } from '../../shared/types'
+import type { AppConfig } from '../../shared/types'
 
 const api = window.settingsApi
 
-function input(id: string): HTMLInputElement {
-  const el = document.getElementById(id)
-  if (!(el instanceof HTMLInputElement)) throw new Error(`missing input #${id}`)
-  return el
+interface Row {
+  /** The id this pane had when settings opened; null for a newly added row. */
+  originalId: string | null
+  id: string
+  label: string
+  url: string
+  weight: number
 }
 
-const form = document.getElementById('form') as HTMLFormElement
+let rows: Row[] = []
+
+const panesEl = document.getElementById('panes') as HTMLDivElement
 const errorEl = document.getElementById('error') as HTMLParagraphElement
 
-let dividerRatio = 0.5
-
-function readPane(index: 0 | 1): PaneConfig {
-  return {
-    id: input(`id-${index}`).value.trim(),
-    label: input(`label-${index}`).value.trim(),
-    url: input(`url-${index}`).value.trim(),
-  }
+function field(labelText: string, value: string, onInput: (v: string) => void): HTMLElement[] {
+  const label = document.createElement('label')
+  label.textContent = labelText
+  const inp = document.createElement('input')
+  inp.spellcheck = false
+  inp.value = value
+  inp.addEventListener('input', () => onInput(inp.value))
+  return [label, inp]
 }
 
-function fillPane(index: 0 | 1, pane: PaneConfig): void {
-  input(`id-${index}`).value = pane.id
-  input(`label-${index}`).value = pane.label
-  input(`url-${index}`).value = pane.url
+function iconButton(text: string, title: string, onClick: () => void, disabled = false): HTMLButtonElement {
+  const b = document.createElement('button')
+  b.type = 'button'
+  b.className = 'icon-btn'
+  b.textContent = text
+  b.title = title
+  b.disabled = disabled
+  b.addEventListener('click', onClick)
+  return b
 }
 
-async function load(): Promise<void> {
+function render(): void {
+  panesEl.replaceChildren()
+  rows.forEach((row, index) => {
+    const card = document.createElement('div')
+    card.className = 'pane'
+
+    const head = document.createElement('div')
+    head.className = 'pane-head'
+    const num = document.createElement('span')
+    num.className = 'num'
+    num.textContent = `Pane ${index + 1}`
+    head.appendChild(num)
+    head.appendChild(iconButton('↑', 'Move up', () => move(index, -1), index === 0))
+    head.appendChild(iconButton('↓', 'Move down', () => move(index, 1), index === rows.length - 1))
+    head.appendChild(iconButton('✕', 'Remove pane', () => remove(index), rows.length <= 1))
+    card.appendChild(head)
+
+    const grid = document.createElement('div')
+    grid.className = 'grid'
+    grid.append(...field('Label', row.label, (v) => (row.label = v)))
+    grid.append(...field('URL', row.url, (v) => (row.url = v)))
+    grid.append(...field('ID', row.id, (v) => (row.id = v)))
+
+    const sessionRow = document.createElement('div')
+    sessionRow.className = 'session-row'
+    const status = document.createElement('span')
+    status.className = 'session-status'
+    const clearBtn = iconButton(
+      'Clear session',
+      'Wipe cookies and storage for this pane',
+      () => {
+        if (!row.originalId) return
+        clearBtn.disabled = true
+        status.textContent = 'Clearing…'
+        void api.clearSession(row.originalId).then((result) => {
+          clearBtn.disabled = false
+          status.textContent = result.ok ? 'Cleared ✓' : (result.error ?? 'Failed')
+        })
+      },
+      row.originalId === null,
+    )
+    if (row.originalId === null) status.textContent = 'Save first to create this session'
+    sessionRow.append(clearBtn, status)
+    grid.appendChild(sessionRow)
+
+    card.appendChild(grid)
+    panesEl.appendChild(card)
+  })
+}
+
+function move(index: number, dir: -1 | 1): void {
+  const target = index + dir
+  if (target < 0 || target >= rows.length) return
+  ;[rows[index], rows[target]] = [rows[target], rows[index]]
+  render()
+}
+
+function remove(index: number): void {
+  if (rows.length <= 1) return
+  rows.splice(index, 1)
+  render()
+}
+
+function add(): void {
+  const avg = rows.length ? rows.reduce((a, r) => a + r.weight, 0) / rows.length : 1
+  rows.push({ originalId: null, id: '', label: 'New Pane', url: 'https://claude.ai', weight: avg })
+  render()
+}
+
+async function loadConfig(): Promise<void> {
   const config = await api.getConfig()
-  dividerRatio = config.dividerRatio
-  fillPane(0, config.panes[0])
-  fillPane(1, config.panes[1])
+  rows = config.panes.map((pane, i) => ({
+    originalId: pane.id,
+    id: pane.id,
+    label: pane.label,
+    url: pane.url,
+    weight: config.weights[i] ?? 1,
+  }))
+  render()
 }
 
-form.addEventListener('submit', (event) => {
-  event.preventDefault()
-  const config: AppConfig = { panes: [readPane(0), readPane(1)], dividerRatio }
-  void api.save(config).then((result) => {
-    if (result.ok) {
-      api.close()
-    } else {
-      errorEl.textContent = result.error ?? 'Could not save settings.'
-    }
-  })
-})
-
-const SLOTS: readonly PaneSlot[] = ['left', 'right']
-SLOTS.forEach((slot, index) => {
-  const button = document.getElementById(`clear-${index}`)
-  const status = document.getElementById(`clear-status-${index}`)
-  if (!(button instanceof HTMLButtonElement) || !status) return
-  button.addEventListener('click', () => {
-    button.disabled = true
-    status.textContent = 'Clearing…'
-    void api.clearSession(slot).then((result) => {
-      button.disabled = false
-      status.textContent = result.ok ? 'Cleared ✓' : (result.error ?? 'Failed')
-    })
-  })
-})
-
+document.getElementById('add')?.addEventListener('click', add)
 document.getElementById('cancel')?.addEventListener('click', () => api.close())
+document.getElementById('save')?.addEventListener('click', () => {
+  const config: AppConfig = {
+    panes: rows.map((r) => ({ id: r.id.trim(), label: r.label.trim(), url: r.url.trim() })),
+    weights: rows.map((r) => r.weight),
+  }
+  void api.save(config).then((result) => {
+    if (result.ok) api.close()
+    else errorEl.textContent = result.error ?? 'Could not save settings.'
+  })
+})
 
-void load()
+void loadConfig()

@@ -8,8 +8,10 @@ export const DEFAULT_CONFIG: AppConfig = {
     { id: 'claude', label: 'Claude', url: 'https://claude.ai' },
     { id: 'gemini', label: 'Gemini', url: 'https://gemini.google.com/app' },
   ],
-  dividerRatio: 0.5,
+  weights: [0.5, 0.5],
 }
+
+export const PANE_ID_PATTERN = /^[A-Za-z0-9._-]+$/
 
 function configPath(): string {
   return join(app.getPath('userData'), 'config.json')
@@ -29,12 +31,23 @@ function isPaneConfig(value: unknown): value is PaneConfig {
   const pane = value as Record<string, unknown>
   return (
     typeof pane.id === 'string' &&
-    // The id becomes a session partition (a profile directory name).
-    /^[A-Za-z0-9._-]+$/.test(pane.id) &&
+    PANE_ID_PATTERN.test(pane.id) &&
     typeof pane.label === 'string' &&
     typeof pane.url === 'string' &&
     isValidUrl(pane.url)
   )
+}
+
+/** Coerce any weights array to positive numbers summing to 1, one per pane. */
+export function normalizeWeights(weights: unknown, count: number): number[] {
+  const raw = Array.isArray(weights) ? weights : []
+  const cleaned: number[] = []
+  for (let i = 0; i < count; i++) {
+    const w = raw[i]
+    cleaned.push(typeof w === 'number' && Number.isFinite(w) && w > 0 ? w : 1)
+  }
+  const sum = cleaned.reduce((a, b) => a + b, 0)
+  return cleaned.map((w) => w / sum)
 }
 
 export function loadConfig(): AppConfig {
@@ -43,11 +56,17 @@ export function loadConfig(): AppConfig {
     if (typeof raw === 'object' && raw !== null) {
       const candidate = raw as Record<string, unknown>
       const panes = candidate.panes
-      if (Array.isArray(panes) && panes.length === 2 && panes.every(isPaneConfig)) {
-        const ratio = candidate.dividerRatio
-        return {
-          panes: [panes[0], panes[1]],
-          dividerRatio: typeof ratio === 'number' && ratio > 0 && ratio < 1 ? ratio : 0.5,
+      if (Array.isArray(panes) && panes.length >= 1 && panes.every(isPaneConfig)) {
+        // v1 config stored a single dividerRatio for exactly two panes.
+        let weightsSource: unknown = candidate.weights
+        if (weightsSource === undefined && typeof candidate.dividerRatio === 'number') {
+          const r = candidate.dividerRatio
+          if (panes.length === 2 && r > 0 && r < 1) weightsSource = [r, 1 - r]
+        }
+        // Reject duplicate ids (session partitions must be distinct).
+        const ids = new Set(panes.map((p) => p.id))
+        if (ids.size === panes.length) {
+          return { panes, weights: normalizeWeights(weightsSource, panes.length) }
         }
       }
     }
