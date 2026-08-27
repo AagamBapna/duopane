@@ -56,6 +56,21 @@
         color: FieldText;
         font: inherit;
       }
+      .session-row {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 2px;
+      }
+      .session-row button {
+        padding: 3px 10px;
+        font-size: 12px;
+      }
+      .session-status {
+        font-size: 11px;
+        opacity: 0.7;
+      }
       .hint {
         font-size: 11px;
         opacity: 0.6;
@@ -93,16 +108,25 @@
         <label for="id-0">ID</label><input id="id-0" spellcheck="false" />
         <label for="label-0">Label</label><input id="label-0" spellcheck="false" />
         <label for="url-0">URL</label><input id="url-0" spellcheck="false" />
+        <div class="session-row">
+          <button type="button" id="clear-0">Clear session</button>
+          <span class="session-status" id="clear-status-0"></span>
+        </div>
       </fieldset>
       <fieldset>
         <legend>Right pane</legend>
         <label for="id-1">ID</label><input id="id-1" spellcheck="false" />
         <label for="label-1">Label</label><input id="label-1" spellcheck="false" />
         <label for="url-1">URL</label><input id="url-1" spellcheck="false" />
+        <div class="session-row">
+          <button type="button" id="clear-1">Clear session</button>
+          <span class="session-status" id="clear-status-1"></span>
+        </div>
       </fieldset>
       <p class="hint">
         The ID names the pane's persistent login session. Changing it starts a fresh session for
-        that pane; changing it back restores the old login.
+        that pane; changing it back restores the old login. "Clear session" wipes that pane's
+        cookies and storage and reloads it — use it to recover from a stuck or flagged sign-in.
       </p>
       <p class="error" id="error"></p>
       <div class="buttons">

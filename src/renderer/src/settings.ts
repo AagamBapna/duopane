@@ -1,4 +1,4 @@
-import type { AppConfig, PaneConfig } from '../../shared/types'
+import type { AppConfig, PaneConfig, PaneSlot } from '../../shared/types'
 
 const api = window.settingsApi
 
@@ -43,6 +43,21 @@ form.addEventListener('submit', (event) => {
     } else {
       errorEl.textContent = result.error ?? 'Could not save settings.'
     }
+  })
+})
+
+const SLOTS: readonly PaneSlot[] = ['left', 'right']
+SLOTS.forEach((slot, index) => {
+  const button = document.getElementById(`clear-${index}`)
+  const status = document.getElementById(`clear-status-${index}`)
+  if (!(button instanceof HTMLButtonElement) || !status) return
+  button.addEventListener('click', () => {
+    button.disabled = true
+    status.textContent = 'Clearing…'
+    void api.clearSession(slot).then((result) => {
+      button.disabled = false
+      status.textContent = result.ok ? 'Cleared ✓' : (result.error ?? 'Failed')
+    })
   })
 })
 

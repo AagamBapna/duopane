@@ -13,7 +13,9 @@ function onSend<C extends keyof RendererSendMap>(
 
 function onInvoke<C extends keyof RendererInvokeMap>(
   channel: C,
-  handler: (...args: RendererInvokeMap[C]['args']) => RendererInvokeMap[C]['result'],
+  handler: (
+    ...args: RendererInvokeMap[C]['args']
+  ) => RendererInvokeMap[C]['result'] | Promise<RendererInvokeMap[C]['result']>,
 ): void {
   ipcMain.handle(channel, (_event, ...args) => handler(...(args as RendererInvokeMap[C]['args'])))
 }
@@ -54,5 +56,13 @@ export function registerIpc(pm: PaneManager, win: BrowserWindow): void {
     saveConfig(clean)
     pm.applyConfig(clean)
     return { ok: true }
+  })
+  onInvoke('session:clear', async (slot): Promise<SaveConfigResult> => {
+    try {
+      await pm.clearSession(slot)
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Could not clear session.' }
+    }
   })
 }

@@ -54,6 +54,7 @@ export interface RendererSendMap {
 export interface RendererInvokeMap {
   'config:get': { args: []; result: AppConfig }
   'config:save': { args: [config: AppConfig]; result: SaveConfigResult }
+  'session:clear': { args: [slot: PaneSlot]; result: SaveConfigResult }
 }
 
 /** Channels sent main -> chrome renderer via webContents.send. */
@@ -83,6 +84,7 @@ export interface ChromeApi {
 export interface SettingsApi {
   getConfig(): Promise<AppConfig>
   save(config: AppConfig): Promise<SaveConfigResult>
+  clearSession(slot: PaneSlot): Promise<SaveConfigResult>
   close(): void
 }
 

@@ -11,6 +11,11 @@ import type {
 } from '../shared/types'
 import { CHROME_TOPBAR_HEIGHT, DIVIDER_GAP, MIN_PANE_WIDTH } from '../shared/types'
 import { saveConfig } from './config'
+import { getZoom, setZoom } from './window-state'
+
+const MIN_ZOOM_LEVEL = -3
+const MAX_ZOOM_LEVEL = 4.5
+const ZOOM_STEP = 0.5
 
 /**
  * A realistic Chrome desktop user agent. Google refuses OAuth sign-in in
@@ -146,6 +151,9 @@ export class PaneManager {
     wc.on('did-navigate-in-page', push)
     wc.on('did-start-loading', push)
     wc.on('did-stop-loading', push)
+    // Chromium zoom is per-origin and resets on cross-origin loads; reapply
+    // the pane's saved level after every load so it stays consistent.
+    wc.on('did-finish-load', () => wc.setZoomLevel(getZoom(pane.config.id)))
     // -3 (ERR_ABORTED) fires for cancelled loads during normal navigation.
     wc.on('did-fail-load', (_event, errorCode, _desc, _url, isMainFrame) => {
       if (isMainFrame && errorCode !== -3) push()
@@ -335,6 +343,26 @@ export class PaneManager {
 
   copyFocusedUrl(): void {
     clipboard.writeText(this.slots[this.focused].view.webContents.getURL())
+  }
+
+  zoomFocused(change: 'in' | 'out' | 'reset'): void {
+    const pane = this.slots[this.focused]
+    const wc = pane.view.webContents
+    let level = 0
+    if (change !== 'reset') {
+      const delta = change === 'in' ? ZOOM_STEP : -ZOOM_STEP
+      level = Math.min(MAX_ZOOM_LEVEL, Math.max(MIN_ZOOM_LEVEL, wc.getZoomLevel() + delta))
+    }
+    wc.setZoomLevel(level)
+    setZoom(pane.config.id, level)
+  }
+
+  async clearSession(slot: PaneSlot): Promise<void> {
+    const pane = this.slots[slot]
+    const ses = pane.view.webContents.session
+    await ses.clearStorageData()
+    await ses.clearCache()
+    void pane.view.webContents.loadURL(pane.config.url)
   }
 
   // ---- Config ----

@@ -3,3 +3,4 @@ out/
 dist/
 *.local
 .DS_Store
+build/icon.iconset/

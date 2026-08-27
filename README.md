@@ -62,9 +62,16 @@ back to the defaults above.
 | `⌘R` | Reload focused pane |
 | `⌘[` / `⌘]` | Back / forward in focused pane |
 | `⌘⇧C` | Copy focused pane's current URL |
+| `⌘=` / `⌘-` | Zoom focused pane in / out (Actual Size is in the View menu) |
 
 The divider snaps to 50/50 when released within 3% of center and refuses to
 shrink either pane below 320px.
+
+Zoom level is remembered per pane. Window size and position are restored on
+the next launch (both are stored in
+`~/Library/Application Support/DuoPane/window-state.json`, separate from the
+pane config). If a pane's sign-in gets stuck, **Settings → Clear session**
+wipes that pane's cookies and storage and reloads it.
 
 ## The Google login workaround
 

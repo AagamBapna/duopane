@@ -46,6 +46,11 @@ export function buildMenu(pm: PaneManager, win: BrowserWindow): void {
           click: () => pm.focusedPaneAction('open-external'),
         },
         { type: 'separator' },
+        { label: 'Zoom In', accelerator: 'CommandOrControl+=', click: () => pm.zoomFocused('in') },
+        { label: 'Zoom Out', accelerator: 'CommandOrControl+-', click: () => pm.zoomFocused('out') },
+        // Cmd+0 is Reset Split; Actual Size stays menu-only to avoid the clash.
+        { label: 'Actual Size', click: () => pm.zoomFocused('reset') },
+        { type: 'separator' },
         { role: 'togglefullscreen' },
       ],
     },

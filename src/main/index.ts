@@ -1,22 +1,36 @@
-import { BrowserWindow, app } from 'electron'
+import { BrowserWindow, app, nativeImage } from 'electron'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { CHROME_TOPBAR_HEIGHT, DIVIDER_GAP, MIN_PANE_WIDTH } from '../shared/types'
 import { loadConfig } from './config'
 import { registerIpc } from './ipc'
 import { buildMenu } from './menu'
 import { PaneManager } from './panes'
+import { flushWindowState, saveBounds, savedBounds } from './window-state'
 
 // Must run before 'ready' so userData (and the config file) lands under
 // ~/Library/Application Support/DuoPane even in dev.
 app.setName('DuoPane')
 
+// In a packaged build the icon comes from the bundle; in dev the process is
+// generic Electron, so point the dock at the source icon when it exists.
+function setDevDockIcon(): void {
+  if (app.isPackaged || !app.dock) return
+  const iconPath = join(__dirname, '../../build/icon-1024.png')
+  if (!existsSync(iconPath)) return
+  const image = nativeImage.createFromPath(iconPath)
+  if (!image.isEmpty()) app.dock.setIcon(image)
+}
+
 let mainWin: BrowserWindow | null = null
 
 function createWindow(): void {
   const config = loadConfig()
+  const restored = savedBounds()
   const win = new BrowserWindow({
-    width: 1440,
-    height: 900,
+    width: restored?.width ?? 1440,
+    height: restored?.height ?? 900,
+    ...(restored ? { x: restored.x, y: restored.y } : {}),
     minWidth: MIN_PANE_WIDTH * 2 + DIVIDER_GAP,
     minHeight: CHROME_TOPBAR_HEIGHT + 400,
     titleBarStyle: 'hiddenInset',
@@ -28,6 +42,18 @@ function createWindow(): void {
       nodeIntegration: false,
       sandbox: true,
     },
+  })
+
+  // getNormalBounds ignores a maximized/fullscreen frame, so a restore always
+  // reopens at the last user-sized geometry.
+  const rememberBounds = (): void => saveBounds(win.getNormalBounds())
+  win.on('resize', rememberBounds)
+  win.on('move', rememberBounds)
+  // 'close' runs after 'before-quit', so flush here or the final geometry is
+  // lost on quit.
+  win.on('close', () => {
+    saveBounds(win.getNormalBounds())
+    flushWindowState()
   })
 
   const devUrl = process.env.ELECTRON_RENDERER_URL
@@ -57,8 +83,13 @@ if (!app.requestSingleInstanceLock()) {
       mainWin.focus()
     }
   })
-  void app.whenReady().then(createWindow)
+  void app.whenReady().then(() => {
+    setDevDockIcon()
+    createWindow()
+  })
 }
+
+app.on('before-quit', () => flushWindowState())
 
 app.on('window-all-closed', () => {
   app.quit()

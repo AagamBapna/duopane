@@ -13,6 +13,7 @@ function invoke<C extends keyof RendererInvokeMap>(
 const api: SettingsApi = {
   getConfig: () => invoke('config:get'),
   save: (config) => invoke('config:save', config),
+  clearSession: (slot) => invoke('session:clear', slot),
   close: () => ipcRenderer.send('settings:close'),
 }
 

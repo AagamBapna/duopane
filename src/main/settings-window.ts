@@ -10,7 +10,7 @@ export function openSettingsWindow(parent: BrowserWindow): void {
   }
   settingsWin = new BrowserWindow({
     width: 540,
-    height: 470,
+    height: 560,
     parent,
     resizable: false,
     minimizable: false,
