@@ -29,13 +29,79 @@ function realisticChromeUA(): string {
   return `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeMajor}.0.0.0 Safari/537.36`
 }
 
-/** Hosts that must stay inside the pane for sign-in flows to complete. */
-const AUTH_HOSTS = [
-  'accounts.google.com',
-  'accounts.youtube.com',
-  'myaccount.google.com',
-  'accounts.googleusercontent.com',
-]
+/** Common two-part public suffixes, for registrable-domain comparison. */
+const TWO_PART_TLDS = new Set([
+  'co.uk',
+  'org.uk',
+  'ac.uk',
+  'gov.uk',
+  'com.au',
+  'net.au',
+  'org.au',
+  'co.jp',
+  'co.in',
+  'co.nz',
+  'com.br',
+  'com.mx',
+  'com.sg',
+])
+
+function hostOf(url: string): string | null {
+  try {
+    return new URL(url).hostname.toLowerCase()
+  } catch {
+    return null
+  }
+}
+
+/** eTLD+1, so app.example.com and auth.example.com compare equal. */
+function registrableDomain(host: string): string {
+  const parts = host.split('.')
+  if (parts.length <= 2) return host
+  const lastTwo = parts.slice(-2).join('.')
+  if (TWO_PART_TLDS.has(lastTwo)) return parts.slice(-3).join('.')
+  return lastTwo
+}
+
+// A sign-in flow routinely hops to a dedicated auth domain that is NOT the
+// site's own domain (chatgpt.com -> auth.openai.com, and on to
+// accounts.google.com). These must stay inside the pane or the flow breaks
+// with a generic "we ran into an issue signing you in".
+const AUTH_FIRST_LABELS = new Set([
+  'auth',
+  'auth0',
+  'login',
+  'logon',
+  'signin',
+  'accounts',
+  'account',
+  'oauth',
+  'openid',
+  'sso',
+  'idp',
+  'id',
+  'connect',
+  'secure',
+])
+
+function looksLikeAuthHost(host: string): boolean {
+  if (host.includes('auth0') || host.includes('oauth') || host.includes('okta')) return true
+  const first = host.split('.')[0]
+  return AUTH_FIRST_LABELS.has(first)
+}
+
+type NavPolicy = 'in-pane' | 'popup' | 'external'
+
+function classifyTarget(paneUrl: string, targetUrl: string): NavPolicy {
+  const target = hostOf(targetUrl)
+  const pane = hostOf(paneUrl)
+  if (!target || !pane) return 'external'
+  if (registrableDomain(target) === registrableDomain(pane)) return 'in-pane'
+  // Auth hosts open as a real child window so OAuth popups can post back to
+  // their opener; a top-level auth navigation is handled as 'in-pane'.
+  if (looksLikeAuthHost(target)) return 'popup'
+  return 'external'
+}
 
 /** Session partitions that already have preloads registered. */
 const configuredPartitions = new Set<string>()
@@ -220,32 +286,26 @@ export class PaneManager {
     })
 
     wc.setWindowOpenHandler(({ url }) => {
-      if (this.allowedInPane(pane, url)) {
-        void wc.loadURL(url)
-      } else {
-        void shell.openExternal(url)
+      switch (classifyTarget(pane.config.url, url)) {
+        case 'popup':
+          // A real child window: OAuth popups must post back to window.opener.
+          return { action: 'allow' }
+        case 'in-pane':
+          void wc.loadURL(url)
+          return { action: 'deny' }
+        default:
+          void shell.openExternal(url)
+          return { action: 'deny' }
       }
-      return { action: 'deny' }
     })
     wc.on('will-navigate', (event, url) => {
-      if (!this.allowedInPane(pane, url)) {
+      // Top-level navigations to the pane's own site or to an auth domain
+      // proceed in place; only genuinely external sites are handed off.
+      if (classifyTarget(pane.config.url, url) === 'external') {
         event.preventDefault()
         void shell.openExternal(url)
       }
     })
-  }
-
-  private allowedInPane(pane: Pane, url: string): boolean {
-    let target: URL
-    let paneOrigin: URL
-    try {
-      target = new URL(url)
-      paneOrigin = new URL(pane.config.url)
-    } catch {
-      return false
-    }
-    if (target.origin === paneOrigin.origin) return true
-    return AUTH_HOSTS.some((host) => target.hostname === host || target.hostname.endsWith(`.${host}`))
   }
 
   // ---- Layout ----
